@@ -93,38 +93,47 @@ class GSTDocumentApp {
         });
     }
     
-    async generateDocument() {
-        if (!this.currentDocument) {
-            Utils.showMessage('Please select a document type first.', 'error');
-            return;
-        }
-        
-        const docConfig = documentRegistry[this.currentDocument];
-        const formData = this.formBuilder.collectFormData();
-        
-        // Clear previous errors
-        this.formBuilder.clearFieldErrors();
-        
-        // Validate form
-        if (!this.formBuilder.validateForm(formData)) {
-            return;
-        }
-        
-        Utils.showLoading('Generating document...');
-        
-        try {
-            const result = await this.templateEngine.generateDocument(docConfig, formData);
-            
-            // Download the file
-            saveAs(result.blob, result.filename);
-            
-            Utils.showMessage('Document generated successfully! Check your downloads.');
-            
-        } catch (error) {
-            console.error('Generation error:', error);
-            Utils.showMessage(`Error: ${error.message}`, 'error');
-        }
+ async generateDocument() {
+    if (!this.currentDocument) {
+        Utils.showMessage('Please select a document type first.', 'error');
+        return;
     }
+    
+    const docConfig = documentRegistry[this.currentDocument];
+    const formData = this.formBuilder.collectFormData();
+    
+    // Clear previous errors
+    this.formBuilder.clearFieldErrors();
+    
+    // Validate form
+    if (!this.formBuilder.validateForm(formData)) {
+        return;
+    }
+    
+    // 🚨 TEMPORARY: Test template access first
+    console.log('=== DEBUG: Testing template access ===');
+    const canAccess = await this.templateEngine.testGeneration(docConfig, formData);
+    
+    if (!canAccess) {
+        Utils.showMessage('Cannot access template file. Please check template path.', 'error');
+        return;
+    }
+    
+    Utils.showLoading('Generating document...');
+    
+    try {
+        const result = await this.templateEngine.generateDocument(docConfig, formData);
+        
+        // Download the file
+        saveAs(result.blob, result.filename);
+        
+        Utils.showMessage('Document generated successfully! Check your downloads.');
+        
+    } catch (error) {
+        console.error('Generation error:', error);
+        Utils.showMessage(`Error: ${error.message}`, 'error');
+    }
+}
 }
 
 // Initialize the application when DOM is loaded
