@@ -32,48 +32,91 @@ class TemplateEngine {
     
     async processDocxTemplate(templateUrl, formData) {
         try {
+            console.log('Fetching template from:', templateUrl);
+            
             // Fetch the template from your GitHub repository
             const response = await fetch(templateUrl);
             if (!response.ok) {
-                throw new Error(`Failed to fetch template: ${response.statusText}`);
+                throw new Error(`Failed to fetch template: ${response.status} ${response.statusText}`);
             }
             
             const templateBuffer = await response.arrayBuffer();
+            console.log('Template fetched successfully, size:', templateBuffer.byteLength, 'bytes');
             
-            // Initialize docxtemplater
-            const zip = new JSZip();
+            // Load the template directly with docxtemplater
             const doc = new docxtemplater();
             
-            // Load the template
+            // Use the correct JSZip loading method
+            const zip = new JSZip();
             await zip.loadAsync(templateBuffer);
+            
             doc.loadZip(zip);
             
             // Prepare data for template (convert dates, format numbers, etc.)
             const templateData = this.prepareTemplateData(formData);
+            console.log('Template data prepared:', templateData);
             
             // Set template data
             doc.setData(templateData);
             
             try {
                 // Render the document
+                console.log('Rendering document...');
                 doc.render();
+                console.log('Document rendered successfully');
             } catch (renderError) {
                 console.error('Template rendering error:', renderError);
                 throw new Error(`Template rendering failed: ${renderError.message}`);
             }
             
             // Generate the output DOCX
+            console.log('Generating output DOCX...');
             const outBuffer = doc.getZip().generate({ 
                 type: 'blob',
                 mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             });
             
+            console.log('DOCX generated successfully');
             return outBuffer;
             
         } catch (error) {
             console.error('DOCX processing error:', error);
             throw new Error(`Document processing failed: ${error.message}`);
         }
+    }
+    
+    // Alternative method using JSZipUtils (more reliable)
+    async processDocxTemplateAlternative(templateUrl, formData) {
+        return new Promise((resolve, reject) => {
+            // Use JSZipUtils for better compatibility
+            JSZipUtils.getBinaryContent(templateUrl, (error, content) => {
+                if (error) {
+                    reject(new Error(`Failed to load template: ${error.message}`));
+                    return;
+                }
+                
+                try {
+                    console.log('Template loaded via JSZipUtils, size:', content.byteLength, 'bytes');
+                    
+                    const zip = new JSZip(content);
+                    const doc = new docxtemplater();
+                    doc.loadZip(zip);
+                    
+                    const templateData = this.prepareTemplateData(formData);
+                    doc.setData(templateData);
+                    doc.render();
+                    
+                    const out = doc.getZip().generate({
+                        type: 'blob',
+                        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    });
+                    
+                    resolve(out);
+                } catch (processingError) {
+                    reject(new Error(`Template processing failed: ${processingError.message}`));
+                }
+            });
+        });
     }
     
     prepareTemplateData(formData) {
@@ -140,30 +183,4 @@ class TemplateEngine {
             return false;
         }
     }
-
-    // Add this method to your TemplateEngine class
-async testGeneration(docConfig, formData) {
-    console.log('=== TEMPLATE ENGINE DEBUG ===');
-    console.log('Document:', docConfig.name);
-    console.log('Template path:', docConfig.template);
-    console.log('Form data:', formData);
-    
-    try {
-        // Test if template is accessible
-        const isAccessible = await this.testTemplateConnection(docConfig.template);
-        console.log('Template accessible:', isAccessible);
-        
-        if (!isAccessible) {
-            console.error('❌ Template not found at:', docConfig.template);
-            return false;
-        }
-        
-        console.log('✅ Template is accessible');
-        return true;
-        
-    } catch (error) {
-        console.error('❌ Template test failed:', error);
-        return false;
-    }
-}
 }
