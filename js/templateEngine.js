@@ -33,52 +33,50 @@ class TemplateEngine {
 async processDocxTemplate(templateUrl, formData) {
     console.log('Starting DOCX processing for:', templateUrl);
     
-    return new Promise((resolve, reject) => {
-        // Use JSZipUtils which is more reliable
-        JSZipUtils.getBinaryContent(templateUrl, async (error, content) => {
-            if (error) {
-                console.error('Failed to load template:', error);
-                reject(new Error(`Failed to load template: ${error.message}`));
-                return;
-            }
-            
-            try {
-                console.log('Template loaded successfully, size:', content.byteLength, 'bytes');
-                
-                // Load the zip content
-                const zip = new JSZip();
-                await zip.loadAsync(content);
-                
-                // Initialize docxtemplater
-                const doc = new docxtemplater();
-                doc.loadZip(zip);
-                
-                // Prepare and set data
-                const templateData = this.prepareTemplateData(formData);
-                console.log('Setting template data:', templateData);
-                doc.setData(templateData);
-                
-                // Render the document
-                console.log('Rendering document...');
-                doc.render();
-                console.log('Document rendered successfully');
-                
-                // Generate output
-                console.log('Generating output DOCX...');
-                const outBuffer = doc.getZip().generate({ 
-                    type: 'blob',
-                    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                });
-                
-                console.log('DOCX generated successfully');
-                resolve(outBuffer);
-                
-            } catch (processingError) {
-                console.error('DOCX processing error:', processingError);
-                reject(new Error(`Document processing failed: ${processingError.message}`));
-            }
+    try {
+        // Use fetch directly
+        console.log('Fetching template via fetch...');
+        const response = await fetch(templateUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch template: ${response.status} ${response.statusText}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        console.log('Template fetched, size:', arrayBuffer.byteLength, 'bytes');
+        
+        // Load with JSZip - use the correct async method
+        console.log('Loading with JSZip...');
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        
+        // Initialize docxtemplater
+        console.log('Initializing docxtemplater...');
+        const doc = new docxtemplater();
+        doc.loadZip(zip);
+        
+        // Prepare and set data
+        const templateData = this.prepareTemplateData(formData);
+        console.log('Setting template data...');
+        doc.setData(templateData);
+        
+        // Render the document
+        console.log('Rendering document...');
+        doc.render();
+        console.log('Document rendered successfully');
+        
+        // Generate output
+        console.log('Generating output DOCX...');
+        const outBuffer = await doc.getZip().generateAsync({ 
+            type: 'blob',
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         });
-    });
+        
+        console.log('DOCX generated successfully');
+        return outBuffer;
+        
+    } catch (error) {
+        console.error('DOCX processing error:', error);
+        throw new Error(`Document processing failed: ${error.message}`);
+    }
 }
     
     // Alternative method using JSZipUtils (more reliable)
