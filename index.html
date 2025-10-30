@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GST Document Generator</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>GST Document Generator</h1>
+        <p>Generate official GST documents with customized details</p>
+    </div>
+    
+    <div class="container">
+        <div class="sidebar">
+            <h2>Select Document Type</h2>
+            <div id="document-list">
+                <!-- Documents will be loaded here by JavaScript -->
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div id="form-container">
+                <div class="form-section">
+                    <h2>Document Details</h2>
+                    <p>Please select a document type from the left to begin.</p>
+                </div>
+            </div>
+            
+            <div id="action-section" class="hidden">
+                <button id="generate-btn" class="btn">Generate Document</button>
+                <div id="message-area"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include required libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.42.0/docxtemplater.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/2.6.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip-utils/0.1.0/jszip-utils.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+
+    <!-- Our modular JavaScript files -->
+    <script src="js/documentRegistry.js"></script>
+    <script src="js/formBuilder.js"></script>
+    <script src="js/templateEngine.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
