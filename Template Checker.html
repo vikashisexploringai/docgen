@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Template Checker</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .placeholder { margin: 5px 0; padding: 5px; border: 1px solid #ccc; }
+        .valid { background: #d4edda; }
+        .invalid { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h2>DOCX Template Placeholder Checker</h2>
+    <input type="file" id="templateFile" accept=".docx">
+    <div id="output" style="margin-top: 20px;"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <script>
+        document.getElementById('templateFile').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const output = document.getElementById('output');
+            output.innerHTML = '<div>Loading template...</div>';
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const zip = await JSZip.loadAsync(arrayBuffer);
+                
+                // Get the main document content
+                const documentXml = await zip.file('word/document.xml').async('text');
+                
+                // Find all placeholder-like patterns
+                const placeholderPattern = /\{\{[^{}]+\}\}/g;
+                const matches = documentXml.match(placeholderPattern) || [];
+                
+                output.innerHTML = `
+                    <h3>Found ${matches.length} Placeholders:</h3>
+                    <div><strong>Template Size:</strong> ${file.size} bytes</div>
+                    <div style="margin-top: 10px;">
+                        ${matches.map(match => {
+                            const isValid = /^\{\{[A-Za-z0-9_]+\}\}$/.test(match);
+                            const className = isValid ? 'valid' : 'invalid';
+                            const status = isValid ? '✓ Valid' : '✗ Invalid';
+                            return `<div class="placeholder ${className}">${match} <small>(${status})</small></div>`;
+                        }).join('')}
+                    </div>
+                `;
+                
+                // Show problematic patterns
+                const problematicPatterns = [
+                    /\{\{\{[^{}]+\}\}\}/g, // Triple braces
+                    /\{\{[^{}]*\{\{[^{}]*\}\}[^{}]*\}\}/g, // Nested braces
+                    /\{\{[^{}]*\s+\}\}/g, // Spaces inside
+                ];
+                
+                let problems = [];
+                problematicPatterns.forEach(pattern => {
+                    const problemMatches = documentXml.match(pattern);
+                    if (problemMatches) {
+                        problems = problems.concat(problemMatches);
+                    }
+                });
+                
+                if (problems.length > 0) {
+                    output.innerHTML += `
+                        <h3 style="color: red;">Problematic Patterns Found:</h3>
+                        <div style="color: red;">
+                            ${problems.map(prob => `<div>${prob}</div>`).join('')}
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                output.innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+                console.error('Debug error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
