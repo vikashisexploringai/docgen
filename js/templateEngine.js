@@ -32,8 +32,8 @@ class TemplateEngine {
         console.log('Starting DOCX processing for:', templateUrl);
         
         try {
-            // Use fetch directly
-            console.log('Fetching template via fetch...');
+            // Fetch template using modern fetch API
+            console.log('Fetching template...');
             const response = await fetch(templateUrl);
             if (!response.ok) {
                 throw new Error(`Failed to fetch template: ${response.status} ${response.statusText}`);
@@ -42,10 +42,9 @@ class TemplateEngine {
             const arrayBuffer = await response.arrayBuffer();
             console.log('Template fetched, size:', arrayBuffer.byteLength, 'bytes');
             
-            // Load with JSZip - CORRECT METHOD for JSZip 3.x
+            // Load with JSZip 3.10.1 - CORRECT METHOD
             console.log('Loading with JSZip...');
-            const zip = new JSZip();
-            await zip.loadAsync(arrayBuffer);
+            const zip = await JSZip.loadAsync(arrayBuffer);
             
             // Initialize docxtemplater
             console.log('Initializing docxtemplater...');
@@ -62,7 +61,7 @@ class TemplateEngine {
             doc.render();
             console.log('Document rendered successfully');
             
-            // Generate output - CORRECT METHOD for JSZip 3.x
+            // Generate output - CORRECT METHOD for JSZip 3.10.1
             console.log('Generating output DOCX...');
             const outBuffer = await doc.getZip().generateAsync({ 
                 type: 'blob',
