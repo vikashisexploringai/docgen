@@ -6,7 +6,6 @@ class TemplateEngine {
     }
     
     async init() {
-        // Load any required resources
         this.initialized = true;
     }
     
@@ -16,7 +15,6 @@ class TemplateEngine {
         }
         
         try {
-            // Fetch and process the actual DOCX template
             const result = await this.processDocxTemplate(docConfig.template, formData);
             
             return {
@@ -30,91 +28,57 @@ class TemplateEngine {
         }
     }
     
-async processDocxTemplate(templateUrl, formData) {
-    console.log('Starting DOCX processing for:', templateUrl);
-    
-    try {
-        // Use fetch directly
-        console.log('Fetching template via fetch...');
-        const response = await fetch(templateUrl);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch template: ${response.status} ${response.statusText}`);
-        }
+    async processDocxTemplate(templateUrl, formData) {
+        console.log('Starting DOCX processing for:', templateUrl);
         
-        const arrayBuffer = await response.arrayBuffer();
-        console.log('Template fetched, size:', arrayBuffer.byteLength, 'bytes');
-        
-        // Load with JSZip - use the correct async method
-        console.log('Loading with JSZip...');
-        const zip = await JSZip.loadAsync(arrayBuffer);
-        
-        // Initialize docxtemplater
-        console.log('Initializing docxtemplater...');
-        const doc = new docxtemplater();
-        doc.loadZip(zip);
-        
-        // Prepare and set data
-        const templateData = this.prepareTemplateData(formData);
-        console.log('Setting template data...');
-        doc.setData(templateData);
-        
-        // Render the document
-        console.log('Rendering document...');
-        doc.render();
-        console.log('Document rendered successfully');
-        
-        // Generate output
-        console.log('Generating output DOCX...');
-        const outBuffer = await doc.getZip().generateAsync({ 
-            type: 'blob',
-            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        });
-        
-        console.log('DOCX generated successfully');
-        return outBuffer;
-        
-    } catch (error) {
-        console.error('DOCX processing error:', error);
-        throw new Error(`Document processing failed: ${error.message}`);
-    }
-}
-    
-    // Alternative method using JSZipUtils (more reliable)
-    async processDocxTemplateAlternative(templateUrl, formData) {
-        return new Promise((resolve, reject) => {
-            // Use JSZipUtils for better compatibility
-            JSZipUtils.getBinaryContent(templateUrl, (error, content) => {
-                if (error) {
-                    reject(new Error(`Failed to load template: ${error.message}`));
-                    return;
-                }
-                
-                try {
-                    console.log('Template loaded via JSZipUtils, size:', content.byteLength, 'bytes');
-                    
-                    const zip = new JSZip(content);
-                    const doc = new docxtemplater();
-                    doc.loadZip(zip);
-                    
-                    const templateData = this.prepareTemplateData(formData);
-                    doc.setData(templateData);
-                    doc.render();
-                    
-                    const out = doc.getZip().generate({
-                        type: 'blob',
-                        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                    });
-                    
-                    resolve(out);
-                } catch (processingError) {
-                    reject(new Error(`Template processing failed: ${processingError.message}`));
-                }
+        try {
+            // Use fetch directly
+            console.log('Fetching template via fetch...');
+            const response = await fetch(templateUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch template: ${response.status} ${response.statusText}`);
+            }
+            
+            const arrayBuffer = await response.arrayBuffer();
+            console.log('Template fetched, size:', arrayBuffer.byteLength, 'bytes');
+            
+            // Load with JSZip - CORRECT METHOD for JSZip 3.x
+            console.log('Loading with JSZip...');
+            const zip = new JSZip();
+            await zip.loadAsync(arrayBuffer);
+            
+            // Initialize docxtemplater
+            console.log('Initializing docxtemplater...');
+            const doc = new docxtemplater();
+            doc.loadZip(zip);
+            
+            // Prepare and set data
+            const templateData = this.prepareTemplateData(formData);
+            console.log('Setting template data...');
+            doc.setData(templateData);
+            
+            // Render the document
+            console.log('Rendering document...');
+            doc.render();
+            console.log('Document rendered successfully');
+            
+            // Generate output - CORRECT METHOD for JSZip 3.x
+            console.log('Generating output DOCX...');
+            const outBuffer = await doc.getZip().generateAsync({ 
+                type: 'blob',
+                mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             });
-        });
+            
+            console.log('DOCX generated successfully');
+            return outBuffer;
+            
+        } catch (error) {
+            console.error('DOCX processing error:', error);
+            throw new Error(`Document processing failed: ${error.message}`);
+        }
     }
     
     prepareTemplateData(formData) {
-        // Clone the form data to avoid modifying the original
         const templateData = { ...formData };
         
         // Format dates for display
@@ -168,7 +132,6 @@ async processDocxTemplate(templateUrl, formData) {
                String(now.getMinutes()).padStart(2, '0');
     }
     
-    // Utility method to test template connectivity
     async testTemplateConnection(templateUrl) {
         try {
             const response = await fetch(templateUrl, { method: 'HEAD' });
