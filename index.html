@@ -43,30 +43,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
-<!-- PizZipUtils polyfill for browser compatibility -->
-<script>
-// Polyfill for PizZipUtils to work properly in browsers
-if (typeof PizZipUtils !== 'undefined') {
-    PizZipUtils.getBinaryContent = function(path, callback) {
-        console.log('Fetching template from:', path);
-        fetch(path)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
-                }
-                return response.arrayBuffer();
-            })
-            .then(arrayBuffer => {
-                console.log('Template fetched successfully');
-                callback(null, arrayBuffer);
-            })
-            .catch(error => {
-                console.error('Failed to fetch template:', error);
-                callback(error);
-            });
-    };
-}
-</script>
 
 <!-- Our modular JavaScript files -->
 <script src="js/documentRegistry.js"></script>
