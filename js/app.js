@@ -93,78 +93,53 @@ class GSTDocumentApp {
         });
     }
     
- async generateDocument() {
-    if (!this.currentDocument) {
-        Utils.showMessage('Please select a document type first.', 'error');
-        return;
-    }
-    
-    const docConfig = documentRegistry[this.currentDocument];
-    const formData = this.formBuilder.collectFormData();
-    
-    // Clear previous errors
-    this.formBuilder.clearFieldErrors();
-    
-    // Validate form
-    if (!this.formBuilder.validateForm(formData)) {
-        return;
-    }
-    
-    // 🚨 TEMPORARY: Test template access first
-    console.log('=== DEBUG: Testing template access ===');
-    const canAccess = await this.templateEngine.testGeneration(docConfig, formData);
-    
-    if (!canAccess) {
-        Utils.showMessage('Cannot access template file. Please check template path.', 'error');
-        return;
-    }
-    
-    Utils.showLoading('Generating document...');
-    
-    try {
-        const result = await this.templateEngine.generateDocument(docConfig, formData);
+    async generateDocument() {
+        if (!this.currentDocument) {
+            Utils.showMessage('Please select a document type first.', 'error');
+            return;
+        }
         
-        // Download the file
-        saveAs(result.blob, result.filename);
+        const docConfig = documentRegistry[this.currentDocument];
+        const formData = this.formBuilder.collectFormData();
         
-        Utils.showMessage('Document generated successfully! Check your downloads.');
+        // Clear previous errors
+        this.formBuilder.clearFieldErrors();
         
-    } catch (error) {
-        console.error('Generation error:', error);
-        Utils.showMessage(`Error: ${error.message}`, 'error');
+        // Validate form
+        if (!this.formBuilder.validateForm(formData)) {
+            return;
+        }
+        
+        // Test template accessibility first
+        try {
+            const isAccessible = await this.templateEngine.testTemplateConnection(docConfig.template);
+            if (!isAccessible) {
+                Utils.showMessage('Cannot access template file. Please check if the template exists.', 'error');
+                return;
+            }
+        } catch (error) {
+            console.warn('Template accessibility check failed:', error);
+            // Continue anyway, as the main generation might still work
+        }
+        
+        Utils.showLoading('Generating document...');
+        
+        try {
+            const result = await this.templateEngine.generateDocument(docConfig, formData);
+            
+            // Download the file
+            saveAs(result.blob, result.filename);
+            
+            Utils.showMessage('Document generated successfully! Check your downloads.');
+            
+        } catch (error) {
+            console.error('Generation error:', error);
+            Utils.showMessage(`Error: ${error.message}`, 'error');
+        }
     }
-}
 }
 
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     new GSTDocumentApp();
 });
-
-// Example of adding a new document type dynamically:
-/*
-registerDocumentType("SCN", {
-    name: "Show Cause Notice",
-    description: "Notice for tax default under Section 73/74",
-    template: "templates/SCN-Template.docx",
-    fields: {
-        NOTICE_NO: { 
-            type: "text", 
-            label: "Notice Number", 
-            required: true,
-            group: "notice"
-        },
-        GSTIN: { 
-            type: "text", 
-            label: "GSTIN Number", 
-            required: true,
-            group: "taxpayer"
-        },
-        // ... more fields
-    },
-    fieldGroups: {
-        notice: { name: "Notice Details", order: 1 },
-        taxpayer: { name: "Taxpayer Details", order: 2 }
-    }
-});
-*/
