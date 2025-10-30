@@ -31,51 +31,54 @@ class TemplateEngine {
     async processDocxTemplate(templateUrl, formData) {
         console.log('Starting DOCX processing for:', templateUrl);
         
-        return new Promise((resolve, reject) => {
-            // Use PizZipUtils instead of JSZipUtils
-            PizZipUtils.getBinaryContent(templateUrl, (error, content) => {
-                if (error) {
-                    console.error('Failed to load template:', error);
-                    reject(new Error(`Failed to load template: ${error.message}`));
-                    return;
-                }
-                
-                try {
-                    console.log('Template loaded successfully, size:', content.byteLength, 'bytes');
-                    
-                    // Use PizZip instead of JSZip
-                    const zip = new PizZip(content);
-                    
-                    // Initialize docxtemplater with PizZip
-                    const doc = new docxtemplater();
-                    doc.loadZip(zip);
-                    
-                    // Prepare and set data
-                    const templateData = this.prepareTemplateData(formData);
-                    console.log('Setting template data...');
-                    doc.setData(templateData);
-                    
-                    // Render the document
-                    console.log('Rendering document...');
-                    doc.render();
-                    console.log('Document rendered successfully');
-                    
-                    // Generate output - Use PizZip's generate method
-                    console.log('Generating output DOCX...');
-                    const outBuffer = doc.getZip().generate({ 
-                        type: 'blob',
-                        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                    });
-                    
-                    console.log('DOCX generated successfully');
-                    resolve(outBuffer);
-                    
-                } catch (processingError) {
-                    console.error('DOCX processing error:', processingError);
-                    reject(new Error(`Document processing failed: ${processingError.message}`));
-                }
+        try {
+            // Fetch template directly using fetch API
+            console.log('Fetching template...');
+            const response = await fetch(templateUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch template: ${response.status} ${response.statusText}`);
+            }
+            
+            // Get the template as array buffer
+            const arrayBuffer = await response.arrayBuffer();
+            console.log('Template fetched, size:', arrayBuffer.byteLength, 'bytes');
+            
+            // Convert array buffer to Uint8Array for PizZip
+            const uint8Array = new Uint8Array(arrayBuffer);
+            
+            // Load with PizZip
+            console.log('Loading with PizZip...');
+            const zip = new PizZip(uint8Array);
+            
+            // Initialize docxtemplater
+            console.log('Initializing docxtemplater...');
+            const doc = new docxtemplater();
+            doc.loadZip(zip);
+            
+            // Prepare and set data
+            const templateData = this.prepareTemplateData(formData);
+            console.log('Setting template data...');
+            doc.setData(templateData);
+            
+            // Render the document
+            console.log('Rendering document...');
+            doc.render();
+            console.log('Document rendered successfully');
+            
+            // Generate output DOCX
+            console.log('Generating output DOCX...');
+            const outBuffer = doc.getZip().generate({ 
+                type: 'blob',
+                mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             });
-        });
+            
+            console.log('DOCX generated successfully');
+            return outBuffer;
+            
+        } catch (error) {
+            console.error('DOCX processing error:', error);
+            throw new Error(`Document processing failed: ${error.message}`);
+        }
     }
     
     prepareTemplateData(formData) {
