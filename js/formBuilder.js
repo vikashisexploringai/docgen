@@ -6,12 +6,11 @@ class FormBuilder {
     }
     
     renderForm(docKey) {
-        // Check if document exists in registry
-        if (!window.documentRegistry || !window.documentRegistry[docKey]) {
+        const docConfig = documentRegistry[docKey];
+        if (!docConfig) {
             throw new Error(`Document configuration not found for: ${docKey}`);
         }
         
-        const docConfig = window.documentRegistry[docKey];
         this.currentDocument = docKey;
         
         let html = `
@@ -104,11 +103,7 @@ class FormBuilder {
     }
     
     collectFormData() {
-        if (!this.currentDocument || !window.documentRegistry[this.currentDocument]) {
-            throw new Error('No document selected');
-        }
-        
-        const docConfig = window.documentRegistry[this.currentDocument];
+        const docConfig = documentRegistry[this.currentDocument];
         const formData = {};
         
         Object.keys(docConfig.fields).forEach(fieldKey => {
@@ -122,11 +117,7 @@ class FormBuilder {
     }
     
     validateForm(formData) {
-        if (!this.currentDocument || !window.documentRegistry[this.currentDocument]) {
-            throw new Error('No document selected');
-        }
-        
-        const docConfig = window.documentRegistry[this.currentDocument];
+        const docConfig = documentRegistry[this.currentDocument];
         
         for (const [fieldKey, field] of Object.entries(docConfig.fields)) {
             if (field.required && (!formData[fieldKey] || formData[fieldKey].trim() === '')) {
@@ -148,8 +139,6 @@ class FormBuilder {
     
     showFieldError(fieldKey, message) {
         const element = document.getElementById(fieldKey);
-        if (!element) return;
-        
         element.focus();
         element.style.borderColor = 'red';
         
@@ -178,5 +167,7 @@ class FormBuilder {
     }
 }
 
-// Make FormBuilder available globally
-window.FormBuilder = FormBuilder;
+// Export for use in other modules
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = FormBuilder;
+}
