@@ -140,4 +140,30 @@ class TemplateEngine {
             return false;
         }
     }
+
+    // Add this method to your TemplateEngine class
+async testGeneration(docConfig, formData) {
+    console.log('=== TEMPLATE ENGINE DEBUG ===');
+    console.log('Document:', docConfig.name);
+    console.log('Template path:', docConfig.template);
+    console.log('Form data:', formData);
+    
+    try {
+        // Test if template is accessible
+        const isAccessible = await this.testTemplateConnection(docConfig.template);
+        console.log('Template accessible:', isAccessible);
+        
+        if (!isAccessible) {
+            console.error('❌ Template not found at:', docConfig.template);
+            return false;
+        }
+        
+        console.log('✅ Template is accessible');
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Template test failed:', error);
+        return false;
+    }
+}
 }
