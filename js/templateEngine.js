@@ -16,13 +16,13 @@ class TemplateEngine {
         }
         
         try {
-            // In a real implementation, this would:
-            // 1. Fetch the template DOCX from the server/GitHub
-            // 2. Process it with docxtemplater
-            // 3. Generate the final DOCX file
+            // Fetch and process the actual DOCX template
+            const result = await this.processDocxTemplate(docConfig.template, formData);
             
-            // For now, we'll simulate the process
-            return await this.simulateGeneration(docConfig, formData);
+            return {
+                blob: result,
+                filename: `${docConfig.name.replace(/\s+/g, '_')}_${this.getTimestamp()}.docx`
+            };
             
         } catch (error) {
             console.error('Template generation error:', error);
@@ -30,77 +30,114 @@ class TemplateEngine {
         }
     }
     
-    async simulateGeneration(docConfig, formData) {
-        // Simulate processing delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        console.log('Generating document:', docConfig.name);
-        console.log('With data:', formData);
-        
-        // Create a simple text file as demonstration
-        // In real implementation, this would be a DOCX file
-        const content = this.createDemoContent(docConfig, formData);
-        const blob = new Blob([content], { type: 'text/plain' });
-        
-        return {
-            blob: blob,
-            filename: `${docConfig.name.replace(/\s+/g, '_')}_${new Date().getTime()}.txt`
-        };
-    }
-    
-    createDemoContent(docConfig, formData) {
-        let content = `GST DOCUMENT: ${docConfig.name}\n`;
-        content += `Description: ${docConfig.description}\n`;
-        content += `Generated on: ${new Date().toLocaleString()}\n`;
-        content += `\n=== DOCUMENT DATA ===\n`;
-        
-        Object.keys(formData).forEach(key => {
-            content += `${key}: ${formData[key]}\n`;
-        });
-        
-        content += `\n=== TEMPLATE PLACEHOLDERS ===\n`;
-        Object.keys(formData).forEach(key => {
-            content += `{{${key}}} = ${formData[key]}\n`;
-        });
-        
-        return content;
-    }
-    
-    // Real implementation would use this method
     async processDocxTemplate(templateUrl, formData) {
-        // This is where you would implement actual DOCX processing
-        // using docxtemplater or similar library
-        
-        /* Example implementation:
         try {
-            // Fetch template
+            // Fetch the template from your GitHub repository
             const response = await fetch(templateUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch template: ${response.statusText}`);
+            }
+            
             const templateBuffer = await response.arrayBuffer();
             
             // Initialize docxtemplater
             const zip = new JSZip();
-            const doc = new Docxtemplater();
+            const doc = new docxtemplater();
+            
+            // Load the template
             await zip.loadAsync(templateBuffer);
             doc.loadZip(zip);
             
+            // Prepare data for template (convert dates, format numbers, etc.)
+            const templateData = this.prepareTemplateData(formData);
+            
             // Set template data
-            doc.setData(formData);
+            doc.setData(templateData);
             
-            // Render document
-            doc.render();
+            try {
+                // Render the document
+                doc.render();
+            } catch (renderError) {
+                console.error('Template rendering error:', renderError);
+                throw new Error(`Template rendering failed: ${renderError.message}`);
+            }
             
-            // Generate output
-            const outBuffer = doc.getZip().generate({ type: 'blob' });
+            // Generate the output DOCX
+            const outBuffer = doc.getZip().generate({ 
+                type: 'blob',
+                mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            });
+            
             return outBuffer;
             
         } catch (error) {
-            throw new Error(`Template processing failed: ${error.message}`);
+            console.error('DOCX processing error:', error);
+            throw new Error(`Document processing failed: ${error.message}`);
         }
-        */
     }
-}
-
-// Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = TemplateEngine;
+    
+    prepareTemplateData(formData) {
+        // Clone the form data to avoid modifying the original
+        const templateData = { ...formData };
+        
+        // Format dates for display
+        Object.keys(templateData).forEach(key => {
+            if (key.includes('DATE') || key.includes('_DATE')) {
+                templateData[key] = this.formatDateForDisplay(templateData[key]);
+            }
+            
+            // Format currency fields
+            if (['TAX', 'PENALTY', 'INTEREST', 'TOTAL'].includes(key)) {
+                templateData[key] = this.formatCurrencyForDisplay(templateData[key]);
+            }
+        });
+        
+        return templateData;
+    }
+    
+    formatDateForDisplay(dateString) {
+        if (!dateString) return '';
+        
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        } catch (error) {
+            return dateString;
+        }
+    }
+    
+    formatCurrencyForDisplay(amount) {
+        if (!amount) return '0.00';
+        
+        const num = parseFloat(amount);
+        if (isNaN(num)) return '0.00';
+        
+        return num.toLocaleString('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+    
+    getTimestamp() {
+        const now = new Date();
+        return now.getFullYear() + 
+               String(now.getMonth() + 1).padStart(2, '0') + 
+               String(now.getDate()).padStart(2, '0') + 
+               String(now.getHours()).padStart(2, '0') + 
+               String(now.getMinutes()).padStart(2, '0');
+    }
+    
+    // Utility method to test template connectivity
+    async testTemplateConnection(templateUrl) {
+        try {
+            const response = await fetch(templateUrl, { method: 'HEAD' });
+            return response.ok;
+        } catch (error) {
+            return false;
+        }
+    }
 }
