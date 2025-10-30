@@ -36,17 +36,17 @@
     </div>
 
     <!-- Include required libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.42.0/docxtemplater.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/2.6.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip-utils/0.1.0/jszip-utils.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.42.0/docxtemplater.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
-    <!-- Our modular JavaScript files -->
+    <!-- Our modular JavaScript files - Load in correct order -->
+    <script src="js/utils.js"></script>
     <script src="js/documentRegistry.js"></script>
     <script src="js/formBuilder.js"></script>
     <script src="js/templateEngine.js"></script>
-    <script src="js/utils.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
