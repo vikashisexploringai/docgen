@@ -35,11 +35,11 @@
         </div>
     </div>
 
-    <!-- Include required libraries - USE COMPATIBLE VERSIONS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/2.6.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.42.0/docxtemplater.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <!-- Include required libraries - LOCAL FILES -->
+    <script src="lib/jszip.min.js"></script>
+    <script src="lib/docxtemplater.js"></script>
+    <script src="lib/FileSaver.min.js"></script>
+    <script src="lib/moment.min.js"></script>
 
     <!-- Our modular JavaScript files -->
     <script src="js/documentRegistry.js"></script>
@@ -47,12 +47,5 @@
     <script src="js/templateEngine.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/app.js"></script>
-
-    <script>
-        // Verify libraries are loaded
-        console.log('JSZip loaded:', typeof JSZip !== 'undefined');
-        console.log('docxtemplater loaded:', typeof docxtemplater !== 'undefined');
-        console.log('JSZip version:', JSZip ? JSZip.version : 'not loaded');
-    </script>
 </body>
 </html>
