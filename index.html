@@ -36,17 +36,18 @@
     </div>
 
   <!-- Include required libraries - USE LATEST VERSIONS -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip-utils/0.1.0/jszip-utils.min.js"></script>
+<!-- Include required libraries - USE PIZZIP INSTEAD OF JSZIP -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.6/pizzip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.6/pizzip-utils.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.42.0/docxtemplater.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
-<!-- JSZipUtils polyfill for browser compatibility -->
+<!-- PizZipUtils polyfill for browser compatibility -->
 <script>
-// Polyfill for JSZipUtils to work properly in browsers
-if (typeof JSZipUtils !== 'undefined') {
-    JSZipUtils.getBinaryContent = function(path, callback) {
+// Polyfill for PizZipUtils to work properly in browsers
+if (typeof PizZipUtils !== 'undefined') {
+    PizZipUtils.getBinaryContent = function(path, callback) {
         console.log('Fetching template from:', path);
         fetch(path)
             .then(response => {
@@ -66,11 +67,13 @@ if (typeof JSZipUtils !== 'undefined') {
     };
 }
 </script>
-    <!-- Our modular JavaScript files -->
-    <script src="js/documentRegistry.js"></script>
-    <script src="js/formBuilder.js"></script>
-    <script src="js/templateEngine.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/app.js"></script>
+
+<!-- Our modular JavaScript files -->
+<script src="js/documentRegistry.js"></script>
+<script src="js/formBuilder.js"></script>
+<script src="js/templateEngine.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/app.js"></script>
+
 </body>
 </html>
