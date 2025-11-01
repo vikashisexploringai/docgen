@@ -5,7 +5,7 @@ const documentRegistry = {
     "DRC-13": {
         name: "FORM GST DRC-13",
         description: "Notice to third person under Section 79(1)(c)",
-        template: "templates/DRC-13-Template.docx",
+        template: "templates/DRC-13-Simple-Template.docx",
         fields: {
             BANK_NAME: { 
                 type: "text", 
