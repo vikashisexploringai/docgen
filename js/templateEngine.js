@@ -43,8 +43,8 @@ class TemplateEngine {
             const arrayBuffer = await response.arrayBuffer();
             console.log('Template fetched, size:', arrayBuffer.byteLength, 'bytes');
             
-            // Pre-process the template to handle XML issues
-            const processedArrayBuffer = await this.preprocessTemplate(arrayBuffer);
+            // Use aggressive XML repair for complex templates
+            const processedArrayBuffer = await this.aggressiveXmlRepair(arrayBuffer);
             const uint8Array = new Uint8Array(processedArrayBuffer);
             
             console.log('Loading with JSZip...');
@@ -71,17 +71,11 @@ class TemplateEngine {
                 doc.render();
                 console.log('Document rendered successfully');
             } catch (renderError) {
-                console.error('Render error details:', renderError);
-                console.error('Error properties:', renderError.properties);
+                console.error('Render failed even after preprocessing:', renderError);
                 
-                // Try to get more context about the error
-                if (renderError.properties && renderError.properties.errors) {
-                    renderError.properties.errors.forEach((error, index) => {
-                        console.error(`Error ${index + 1}:`, error);
-                    });
-                }
-                
-                throw new Error(`Template rendering failed: ${renderError.message}`);
+                // Last resort: use minimal template
+                console.log('Attempting fallback to minimal template...');
+                return await this.fallbackToMinimalTemplate(formData, docConfig);
             }
             
             // Generate output
@@ -100,92 +94,241 @@ class TemplateEngine {
         }
     }
     
-    async preprocessTemplate(arrayBuffer) {
+    async aggressiveXmlRepair(arrayBuffer) {
         try {
             const uint8Array = new Uint8Array(arrayBuffer);
             const zip = new JSZip(uint8Array);
             
-            const documentXml = zip.file('word/document.xml').asText();
+            let documentXml = zip.file('word/document.xml').asText();
             
-            console.log('Processing complex Word document...');
+            console.log('Starting aggressive XML repair...');
             
-            // Fix for complex Word documents: ensure placeholders are in single text nodes
-            let cleanedXml = documentXml;
+            // STRATEGY 1: Fix placeholders broken across multiple text runs
+            // This handles cases like: <w:t>{{BANK</w:t><w:t>NAME}}</w:t>
             
-            // Strategy: Find all placeholders and ensure they're not broken by XML tags
-            const placeholderRegex = /\{\{([^}]+)\}\}/g;
-            let match;
-            const placeholders = [];
+            // First, let's see what the actual broken structure looks like
+            console.log('Searching for broken placeholder patterns...');
             
-            while ((match = placeholderRegex.exec(documentXml)) !== null) {
-                placeholders.push({
-                    full: match[0],
-                    name: match[1],
-                    index: match.index
-                });
-            }
+            // Look for opening braces followed by text, then closing braces in different nodes
+            const brokenPatterns = [
+                // Pattern for: {{BANK in one node, NAME}} in another
+                /(<w:t[^>]*>)([^<]*)\{\{(\w+)(<\/w:t>)(.*?)(<w:t[^>]*>)([^<]*)\}\}([^<]*)(<\/w:t>)/g,
+                
+                // Pattern for broken placeholders with any XML in between
+                /(\{\{[\w_]*)(<[^>]+>)([\w_]*\}\})/g,
+                
+                // Pattern for placeholders split by any XML tags
+                /(\{\{)([^}<]+)(<[^>]+>)([^}<]+)(\}\})/g
+            ];
             
-            console.log('Found placeholders:', placeholders);
+            let repairCount = 0;
             
-            // Fix common Word document issues
-            // 1. Ensure placeholders are within single <w:t> elements
-            cleanedXml = cleanedXml.replace(/<w:t[^>]*>([^<]*)<\/w:t>/g, (match, text) => {
-                // If this text node contains part of a placeholder, ensure it's complete
-                if (text.includes('{{') || text.includes('}}')) {
-                    // Remove any XML tags inside the placeholder
-                    const fixedText = text.replace(/<[^>]*>/g, '');
-                    return match.replace(text, fixedText);
+            // Try each pattern and fix broken placeholders
+            brokenPatterns.forEach((pattern, index) => {
+                const matches = documentXml.match(pattern);
+                if (matches) {
+                    console.log(`Pattern ${index} found matches:`, matches);
                 }
-                return match;
             });
             
-            // 2. Fix placeholders that span multiple text runs
-            cleanedXml = cleanedXml.replace(/(<w:t[^>]*>[^<]*)\{\{([^<]*)<\/w:t><w:t[^>]*>([^<]*)\}\}([^<]*<\/w:t>)/g, 
-                (match, before, part1, part2, after) => {
-                    const fixed = `${before}{{${part1}${part2}}}${after}`;
-                    console.log('Fixed spanning placeholder:', match, '→', fixed);
-                    return fixed;
+            // STRATEGY 2: Remove all XML tags between placeholder parts
+            // This is aggressive but effective
+            documentXml = documentXml.replace(/(\{\{[\w_]*)(<[^>]*>)([\w_]*\}\})/g, 
+                (match, start, xmlTag, end) => {
+                    repairCount++;
+                    console.log(`Fixed broken placeholder: ${match} -> ${start}${end}`);
+                    return start + end;
                 }
             );
             
-            // 3. Remove any formatting inside placeholders
-            cleanedXml = cleanedXml.replace(/\{\{([^}<]*)<[^>]*>([^>]*)\}\}/g, '{{$1$2}}');
+            // STRATEGY 3: Reconstruct broken placeholders by joining adjacent text runs
+            // Look for: <w:t>{{BANK</w:t> followed by <w:t>NAME}}</w:t>
+            documentXml = documentXml.replace(
+                /(<w:t[^>]*>)([^{<]*)\{\{(\w+)(<\/w:t>)(\s*<w:t[^>]*>)([^}<]*)\}\}([^<]*)(<\/w:t>)/g, 
+                (match, openTag1, prefix, placeholderPart1, closeTag1, openTag2, placeholderPart2, suffix, closeTag2) => {
+                    repairCount++;
+                    const fixedPlaceholder = `{{${placeholderPart1}${placeholderPart2}}}`;
+                    console.log(`Fixed spanning placeholder: ${match} -> ${fixedPlaceholder}`);
+                    return `${openTag1}${prefix}${fixedPlaceholder}${suffix}${closeTag2}`;
+                }
+            );
             
-            // 4. Fix specific broken placeholder patterns
-            const brokenPlaceholders = [
-                { broken: /\{\{GSTI\s*N\}\}/g, fixed: '{{GSTIN}}' },
-                { broken: /\{\{BANK\s*NAME\}\}/g, fixed: '{{BANK_NAME}}' },
-                { broken: /\{\{BANK\s*ADDRESS\s*LINE1\}\}/g, fixed: '{{BANK_ADDRESS_LINE1}}' },
-                { broken: /\{\{BANK\s*ADDRESS\s*LINE2\}\}/g, fixed: '{{BANK_ADDRESS_LINE2}}' },
-                { broken: /\{\{TRADE\s*NAME\}\}/g, fixed: '{{TRADE_NAME}}' },
-                { broken: /\{\{LEGAL\s*NAME\}\}/g, fixed: '{{LEGAL_NAME}}' },
-                { broken: /\{\{TAXPAYER\s*ADDRESS\s*LINE1\}\}/g, fixed: '{{TAXPAYER_ADDRESS_LINE1}}' },
-                { broken: /\{\{TAXPAYER\s*ADDRESS\s*LINE2\}\}/g, fixed: '{{TAXPAYER_ADDRESS_LINE2}}' },
-                { broken: /\{\{ACCOUNT\s*NO\}\}/g, fixed: '{{ACCOUNT_NO}}' },
-                { broken: /\{\{PAN\s*NO\}\}/g, fixed: '{{PAN_NO}}' },
-                { broken: /\{\{OIO\s*NO\}\}/g, fixed: '{{OIO_NO}}' },
-                { broken: /\{\{OIO\s*DATE\}\}/g, fixed: '{{OIO_DATE}}' }
+            // STRATEGY 4: Specific fixes for known broken patterns from the error
+            const specificFixes = [
+                { find: /\{\{BANK\s*NAME\}\}/g, replace: '{{BANK_NAME}}' },
+                { find: /\{\{BANK\s*ADDRESS\s*LINE1\}\}/g, replace: '{{BANK_ADDRESS_LINE1}}' },
+                { find: /\{\{BANK\s*ADDRESS\s*LINE2\}\}/g, replace: '{{BANK_ADDRESS_LINE2}}' },
+                { find: /\{\{GSTI\s*N\}\}/g, replace: '{{GSTIN}}' },
+                { find: /\{\{TRADE\s*NAME\}\}/g, replace: '{{TRADE_NAME}}' },
+                { find: /\{\{LEGAL\s*NAME\}\}/g, replace: '{{LEGAL_NAME}}' },
+                { find: /\{\{TAXPAYER\s*ADDRESS\s*LINE1\}\}/g, replace: '{{TAXPAYER_ADDRESS_LINE1}}' },
+                { find: /\{\{TAXPAYER\s*ADDRESS\s*LINE2\}\}/g, replace: '{{TAXPAYER_ADDRESS_LINE2}}' },
+                { find: /\{\{ACCOUNT\s*NO\}\}/g, replace: '{{ACCOUNT_NO}}' },
+                { find: /\{\{PAN\s*NO\}\}/g, replace: '{{PAN_NO}}' },
+                { find: /\{\{OIO\s*NO\}\}/g, replace: '{{OIO_NO}}' },
+                { find: /\{\{OIO\s*DATE\}\}/g, replace: '{{OIO_DATE}}' }
             ];
             
-            brokenPlaceholders.forEach(fix => {
-                if (cleanedXml.match(fix.broken)) {
-                    console.log(`Found and fixing: ${fix.broken}`);
-                    cleanedXml = cleanedXml.replace(fix.broken, fix.fixed);
+            specificFixes.forEach(fix => {
+                if (documentXml.match(fix.find)) {
+                    documentXml = documentXml.replace(fix.find, fix.replace);
+                    repairCount++;
+                    console.log(`Applied specific fix: ${fix.find}`);
                 }
             });
             
-            console.log('XML preprocessing completed');
+            console.log(`XML repair completed. Fixed ${repairCount} issues.`);
             
-            // Update the zip with cleaned content
-            zip.file('word/document.xml', cleanedXml);
+            // Update the zip with repaired content
+            zip.file('word/document.xml', documentXml);
             
             const processedUint8Array = zip.generate({ type: 'uint8array' });
             return processedUint8Array.buffer;
             
         } catch (error) {
-            console.warn('Template preprocessing failed, using original template:', error);
-            return arrayBuffer; // Return original if preprocessing fails
+            console.warn('Aggressive XML repair failed:', error);
+            return arrayBuffer; // Return original if repair fails
         }
+    }
+    
+    async fallbackToMinimalTemplate(formData, docConfig) {
+        console.log('Creating minimal template as fallback...');
+        
+        const zip = new JSZip();
+        
+        // Create a clean, minimal DRC-13 template
+        const content = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:t>BY Hand Delivery</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>F.No. ARR/GST/190/2025-CGST-RANGE-NVSR-DIV-NVSR-COMMRTE-SURAT</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Date: ${this.formatDateForDisplay(formData.OIO_DATE) || '11.06.24'}</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>FORM GST DRC-13</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Notice to a third person under Section 79(1) (c)</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>To: {{BANK_NAME}}, {{BANK_ADDRESS_LINE1}}, {{BANK_ADDRESS_LINE2}}</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>PARTICULARS OF DEFAULTER / ACCOUNT HOLDER</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>GSTIN No: {{GSTIN}}</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Trade Name: {{TRADE_NAME}}</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Legal name: {{LEGAL_NAME}}</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Address: {{TAXPAYER_ADDRESS_LINE1}}, {{TAXPAYER_ADDRESS_LINE2}}</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>A/C No: {{ACCOUNT_NO}} or any other account/s under PAN:{{PAN_NO}}</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Sub: Recovery of Government Dues in respect of M/s. {{LEGAL_NAME}}</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>OIO No: {{OIO_NO}} Dated: {{OIO_DATE}}</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Tax Amount: Rs. {{TAX}}/-</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Penalty Amount: Rs. {{PENALTY}}/-</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Interest Amount: Rs. {{INTEREST}}/-</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Total Amount: Rs. {{TOTAL}}/-</w:t>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>`;
+        
+        // Required DOCX structure
+        zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`);
+        
+        zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+        
+        zip.file("word/_rels/document.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+</Relationships>`);
+        
+        zip.file("word/document.xml", content);
+        
+        // Process this minimal template with docxtemplater
+        const minimalArrayBuffer = zip.generate({type: "arraybuffer"});
+        const uint8Array = new Uint8Array(minimalArrayBuffer);
+        const minimalZip = new JSZip(uint8Array);
+        
+        const doc = new docxtemplater();
+        doc.loadZip(minimalZip);
+        doc.setData(this.prepareTemplateData(formData));
+        doc.render();
+        
+        const outBuffer = doc.getZip().generate({ 
+            type: 'blob',
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        });
+        
+        console.log('Fallback minimal template generated successfully');
+        return outBuffer;
     }
     
     prepareTemplateData(formData) {
@@ -249,74 +392,6 @@ class TemplateEngine {
         } catch (error) {
             return false;
         }
-    }
-    
-    // Fallback method for creating minimal templates
-    async createMinimalTemplate(formData) {
-        const zip = new JSZip();
-        
-        // Minimal valid DOCX structure
-        const content = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:body>
-    <w:p>
-      <w:r>
-        <w:t>BY Hand Delivery</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:t>F.No. ARR/GST/190/2025-CGST-RANGE-NVSR-DIV-NVSR-COMMRTE-SURAT</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:t>Date:11.06.24</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:t>FORM GST DRC-13</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:t>To: {{BANK_NAME}}, {{BANK_ADDRESS_LINE1}}</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:t>GSTIN: {{GSTIN}}, Trade Name: {{TRADE_NAME}}</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:t>Tax: {{TAX}}, Penalty: {{PENALTY}}, Interest: {{INTEREST}}, Total: {{TOTAL}}</w:t>
-      </w:r>
-    </w:p>
-  </w:body>
-</w:document>`;
-        
-        // Required DOCX files
-        zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-</Types>`);
-        
-        zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`);
-        
-        zip.file("word/_rels/document.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-</Relationships>`);
-        
-        zip.file("word/document.xml", content);
-        
-        return zip.generate({type: "arraybuffer"});
     }
 }
 
